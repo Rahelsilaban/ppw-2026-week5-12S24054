@@ -22,6 +22,14 @@
 
 README bawaan di bawah akan diganti dengan panduan SIPUS-Del lengkap pada Tahap 7.
 
+### Tahap 4: Routing dan Controller
+
+Kedua resource memakai tujuh action RESTful dan implicit route model binding. `/` mengarah ke `buku.index`. Validasi dilakukan dengan `$request->validate()` di controller; batas panjang penulis, penerbit, kode, dan nama kategori mengikuti skema SQLite. ISBN menerima 10–13 digit sesuai modul (factory tetap menghasilkan 13 digit). Kategori yang masih mempunyai buku ditolak dengan flash `error`; operasi yang berhasil memakai flash `success`.
+
+Controller menyiapkan data untuk view `buku.*` dan `kategori.*`, dengan variabel koleksi `$bukus`/`$kategoris` dan record `$buku`/`$kategori`. Template Blade baru dibuat pada Tahap 5, sehingga halaman GET CRUD belum dapat ditampilkan pada akhir Tahap 4. Pengujian tahap ini memeriksa rute, binding, validasi, perubahan database, dan redirect tanpa mengikuti redirect ke view yang belum tersedia.
+
+Verifikasi Tahap 4: `php artisan route:list --except-vendor` menampilkan 14 rute resource dan 1 redirect `/`. Perintah `php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit` lulus dengan 12 tests dan 531 assertions, termasuk create buku valid, ISBN duplikat, stok negatif, judul pendek, update dengan ISBN tetap, dan penolakan hapus kategori berisi buku. Pint pada file PHP yang diubah juga lulus.
+
 ### Verifikasi Tahap 1
 
 Runtime lokal menggunakan PHP 8.4.26 (memenuhi syarat PHP 8.3+). Driver SQLite pada PHP CLI belum aktif secara bawaan, sehingga perintah verifikasi dijalankan dengan `php -d extension=pdo_sqlite -d extension=sqlite3 artisan migrate --no-interaction`. Untuk memakai perintah `php artisan` biasa, aktifkan `pdo_sqlite` dan `sqlite3` pada konfigurasi PHP lokal terlebih dahulu. Konfigurasi sistem tidak diubah oleh proyek ini.
