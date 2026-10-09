@@ -13,15 +13,22 @@
 - Migrasi kategori dijalankan sebelum buku; foreign key memakai `restrict` agar kategori yang masih digunakan buku tidak dapat dihapus.
 - SQLite tidak menegakkan panjang string dan sifat unsigned seperti beberapa database lain. Deklarasi skema tetap mengikuti modul; batas nilai akan ditegakkan melalui validasi controller pada Tahap 4.
 - Migrasi memakai anonymous class pada struktur `database/migrations` yang tersedia; Tahap 1 tidak membutuhkan penyesuaian struktur Laravel 11 ke Laravel 13.
-- Pada Tahap 2, model `Kategori` dan `Buku` memakai properti klasik `$fillable` dan trait `HasFactory`, dengan relasi `Kategori::bukus()` dan `Buku::kategori()` melalui `kategori_id`. Factory keduanya akan dibuat pada Tahap 3.
+- Pada Tahap 2, model `Kategori` dan `Buku` memakai properti klasik `$fillable` dan trait `HasFactory`, dengan relasi `Kategori::bukus()` dan `Buku::kategori()` melalui `kategori_id`. Factory keduanya ditambahkan pada Tahap 3.
 - Model `User` bawaan Laravel 13 di proyek ini memakai PHP Attributes `Fillable` dan `Hidden`. Keduanya diganti menjadi properti `$fillable` dan `$hidden` dengan isi yang sama agar konfigurasi model mengikuti gaya klasik modul; struktur file tetap mengikuti proyek Laravel 13.
 - Folder proyek awal belum memiliki repository Git. Commit Tahap 1 sekaligus mencatat kerangka proyek yang sudah terinstal, tanpa `.env`, `vendor/`, dan database SQLite lokal.
+- Tahap 3 membuat kelima kategori terlebih dahulu, kemudian empat buku per kategori (total 20). Judul seeder mengikuti kategori; penulis, ISBN-13, penerbit, tahun, stok, dan sinopsis dipilih melalui Faker. Judul boleh sama, tetapi ISBN harus unik.
+- Factory memakai `fake('id_ID')` secara eksplisit agar nama Indonesia tetap digunakan meskipun `.env` lokal masih memakai locale lama. `.env.example` juga memakai `APP_FAKER_LOCALE=id_ID`. Factory buku mandiri membuat kategori melalui `Kategori::factory()`; seeder memakai `for($kategori)` untuk menggunakan kategori yang sudah dibuat.
+- Seeder ditujukan untuk database kosong melalui `migrate:fresh --seed`, bukan dijalankan berulang pada data yang sama. Akun pengguna contoh bawaan diganti dengan data perpustakaan karena autentikasi tidak termasuk tugas.
 
 README bawaan di bawah akan diganti dengan panduan SIPUS-Del lengkap pada Tahap 7.
 
 ### Verifikasi Tahap 1
 
 Runtime lokal menggunakan PHP 8.4.26 (memenuhi syarat PHP 8.3+). Driver SQLite pada PHP CLI belum aktif secara bawaan, sehingga perintah verifikasi dijalankan dengan `php -d extension=pdo_sqlite -d extension=sqlite3 artisan migrate --no-interaction`. Untuk memakai perintah `php artisan` biasa, aktifkan `pdo_sqlite` dan `sqlite3` pada konfigurasi PHP lokal terlebih dahulu. Konfigurasi sistem tidak diubah oleh proyek ini.
+
+### Verifikasi Tahap 3
+
+Jalankan `php -d extension=pdo_sqlite -d extension=sqlite3 artisan migrate:fresh --seed` untuk membuat ulang database dan mengisi 5 kategori serta 20 buku (perintah ini menghapus data lama). Pengujian melalui `php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit` lulus: 4 tests, 293 assertions. Pengujian seeder memeriksa sebaran buku, keunikan dan format ISBN, rentang tahun dan stok, relasi kategori, serta factory buku mandiri. Pemeriksaan format Pint pada file PHP Tahap 3 juga lulus.
 
 ## About Laravel
 
