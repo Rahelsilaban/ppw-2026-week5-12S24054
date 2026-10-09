@@ -1,97 +1,125 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SIPUS-Del
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+SIPUS-Del adalah Sistem Informasi Perpustakaan Kampus untuk tugas mandiri mata kuliah Pemrograman & Pengujian Web. Aplikasi memakai arsitektur MVC, Laravel, SQLite, dan server-side rendering dengan Blade.
+
+Dikembangkan dengan Laravel 13 / PHP 8.3; modul acuan memakai Laravel 11.
+
+## Fitur
+
+- CRUD buku dan kategori dengan tujuh action resource, implicit route model binding, dan validasi server.
+- ISBN serta kode kategori unik; penghapusan kategori yang masih memiliki buku ditolak dengan pesan yang jelas.
+- Daftar buku beserta kategori dan daftar kategori beserta jumlah buku, masing-masing 10 item per halaman.
+- Layout Blade bersama, Bootstrap 5 via CDN, navbar ungu, flash message, pesan validasi, input lama, dan konfirmasi hapus.
+- Factory Faker Indonesia dan seeder berisi 5 kategori serta 20 buku.
+- Eager loading untuk menghindari N+1 dan audit SQL opsional. Lihat [bukti audit SQL](docs/sql-audit.md).
+
+## Prasyarat
+
+- PHP 8.3 atau lebih baru beserta ekstensi yang disyaratkan Composer, termasuk PDO, `pdo_sqlite`, dan `sqlite3`.
+- Composer dan Git.
+- Folder `storage/` serta `bootstrap/cache/` dapat ditulis.
+- Koneksi internet untuk instalasi dependensi dan memuat CSS Bootstrap dari CDN.
+
+Node.js dan build Vite tidak diperlukan untuk halaman SIPUS-Del karena styling memakai Bootstrap CDN. Runtime verifikasi lokal menggunakan PHP 8.4.26, yang memenuhi persyaratan PHP 8.3+.
+
+## Instalasi
+
+Buka terminal pada folder proyek, lalu jalankan:
+
+```powershell
+composer install
+Copy-Item .env.example .env
+php artisan key:generate
+php -r "file_exists('database/database.sqlite') || touch('database/database.sqlite');"
+php artisan migrate:fresh --seed
+php artisan serve
+```
+
+Pada Linux/macOS, ganti `Copy-Item .env.example .env` dengan `cp .env.example .env`. Salin file contoh hanya pada instalasi baru agar konfigurasi lokal yang sudah ada tidak tertimpa. `migrate:fresh --seed` menghapus seluruh tabel lama, membuat skema baru, lalu memasukkan data contoh.
+
+Buka `http://127.0.0.1:8000`; halaman awal mengarah ke `/buku`. Pengaturan `.env.example` sudah memakai `DB_CONNECTION=sqlite`, `APP_FAKER_LOCALE=id_ID`, serta `SQL_AUDIT=false`. `DB_DATABASE` tidak perlu diisi karena Laravel menggunakan `database/database.sqlite` secara default. Tidak ada login karena autentikasi berada di luar cakupan tugas.
+
+### Jika muncul “could not find driver”
+
+Periksa konfigurasi CLI dengan `php --ini`, lalu aktifkan `pdo_sqlite` dan `sqlite3` pada `php.ini` yang digunakan. Pada lingkungan lokal tugas ini, driver tersedia tetapi belum aktif secara bawaan. Alternatif sementara tanpa mengubah konfigurasi sistem:
+
+```powershell
+php -d extension=pdo_sqlite -d extension=sqlite3 artisan migrate:fresh --seed
+php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit
+```
+
+Untuk menjalankan server tanpa mengubah `php.ini`, gunakan server PHP langsung agar opsi ekstensi diterapkan pada proses yang melayani request:
+
+```powershell
+cd public
+php -d extension=pdo_sqlite -d extension=sqlite3 -S 127.0.0.1:8000 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php
+```
+
+## Struktur MVC
+
+| Bagian | Lokasi | Tanggung jawab |
+| --- | --- | --- |
+| Model | `app/Models/Buku.php`, `Kategori.php` | `$fillable`, `HasFactory`, relasi belongsTo/hasMany |
+| Controller | `app/Http/Controllers/BukuController.php`, `KategoriController.php` | Kueri, validasi, perubahan data, redirect, flash |
+| View | `resources/views/buku/`, `kategori/` | Halaman index, create, edit, show; partial form |
+| Layout | `resources/views/components/layout.blade.php` | Kerangka HTML, navbar, CSS Bootstrap, flash |
+| Route | `routes/web.php` | Dua `Route::resource` dan redirect `/` |
+| Skema/data contoh | `database/migrations/`, `factories/`, `seeders/` | Tabel, relasi database, dan data pengujian |
+| Konfigurasi audit | `config/sql_audit.php`, `AppServiceProvider::boot()` | Flag env, DB::listen, dan pencatatan log |
+| Pengujian | `tests/Feature/` | Controller, seeder, render Blade, dan audit SQL |
+
+View tidak menjalankan kueri SQL. Daftar buku memakai `Buku::with('kategori')->latest()->paginate(10)`, sedangkan daftar kategori memakai `Kategori::withCount('bukus')->paginate(10)`. `Paginator::useBootstrapFive()` didaftarkan dalam `AppServiceProvider`.
+
+## Audit SQL
+
+Atur `SQL_AUDIT=true`, `LOG_LEVEL=debug`, dan `LOG_CHANNEL=single` pada `.env`, jalankan `php artisan config:clear`, lalu buka `/buku`. Baris `SQL audit` akan tercatat di `storage/logs/laravel.log`. Saring hanya tabel `bukus` dan `kategoris`; untuk 10 buku, eager loading menghasilkan 3 kueri, sedangkan pengukuran lazy loading sementara menghasilkan 12 kueri.
+
+Setelah pengukuran, kembalikan `SQL_AUDIT=false` dan jalankan `php artisan config:clear`. Kondisi kode akhir tetap menggunakan eager loading. SQL audit mencatat nilai parameter aktual, sehingga hanya diaktifkan saat pemeriksaan. Log asli tidak masuk Git; metode dan bukti tersaring tersedia di [docs/sql-audit.md](docs/sql-audit.md).
+
+## Pengujian dan Hasil Verifikasi
+
+Setelah ekstensi SQLite aktif:
+
+```powershell
+php artisan migrate:fresh --seed
+php artisan route:list
+php vendor/bin/phpunit
+php vendor/bin/pint --test app database routes tests config/sql_audit.php
+php artisan view:cache
+php artisan view:clear
+```
+
+Pengujian memakai SQLite in-memory dari `phpunit.xml`, sehingga tidak mengubah data aplikasi. Jika driver CLI belum aktif, gunakan opsi `-d extension=pdo_sqlite -d extension=sqlite3` seperti contoh di atas. Perintah `php artisan test` juga dapat dipakai setelah ekstensi diaktifkan di `php.ini`.
+
+Hasil verifikasi akhir pada 9 Oktober 2026:
+
+| Pemeriksaan | Hasil |
+| --- | --- |
+| `migrate:fresh --seed` | Sukses; 5 kategori dan 20 buku |
+| Rute resource | 14 rute: 7 buku dan 7 kategori; redirect `/` dan rute bawaan framework dihitung terpisah |
+| PHPUnit | 22 tests, 659 assertions, seluruhnya lulus |
+| Create buku valid | Berhasil tersimpan |
+| ISBN duplikat | Ditolak pada store/update |
+| Stok -1 | Ditolak |
+| Judul kurang dari 5 karakter | Ditolak |
+| Update tanpa mengubah ISBN | Berhasil tanpa error unique |
+| Hapus kategori yang mempunyai buku | Ditolak dengan flash error; data tetap tersimpan |
+| Render Blade | Delapan halaman CRUD, data kosong, pagination, error/old input, flash, dan escaping lulus |
+| Eager loading | 3 kueri; dibandingkan 12 kueri lazy loading sementara |
+| Format dan kompilasi view | Pint dan `view:cache` lulus |
+
+`git status --short` harus kosong setelah commit. `git ls-files -- .env 'vendor/*'` tidak boleh menghasilkan output; `.env`, `vendor/`, database SQLite lokal, cache hasil kompilasi, serta log tidak disertakan dalam commit.
 
 ## Keputusan Desain
 
-- Tahap 1 mempertahankan migrasi bawaan Laravel untuk users, cache, dan jobs karena konfigurasi awal memakai session, cache, dan queue berbasis database.
-- Migrasi kategori dijalankan sebelum buku; foreign key memakai `restrict` agar kategori yang masih digunakan buku tidak dapat dihapus.
-- SQLite tidak menegakkan panjang string dan sifat unsigned seperti beberapa database lain. Deklarasi skema tetap mengikuti modul; batas nilai akan ditegakkan melalui validasi controller pada Tahap 4.
-- Migrasi memakai anonymous class pada struktur `database/migrations` yang tersedia; Tahap 1 tidak membutuhkan penyesuaian struktur Laravel 11 ke Laravel 13.
-- Pada Tahap 2, model `Kategori` dan `Buku` memakai properti klasik `$fillable` dan trait `HasFactory`, dengan relasi `Kategori::bukus()` dan `Buku::kategori()` melalui `kategori_id`. Factory keduanya ditambahkan pada Tahap 3.
-- Model `User` bawaan Laravel 13 di proyek ini memakai PHP Attributes `Fillable` dan `Hidden`. Keduanya diganti menjadi properti `$fillable` dan `$hidden` dengan isi yang sama agar konfigurasi model mengikuti gaya klasik modul; struktur file tetap mengikuti proyek Laravel 13.
-- Folder proyek awal belum memiliki repository Git. Commit Tahap 1 sekaligus mencatat kerangka proyek yang sudah terinstal, tanpa `.env`, `vendor/`, dan database SQLite lokal.
-- Tahap 3 membuat kelima kategori terlebih dahulu, kemudian empat buku per kategori (total 20). Judul seeder mengikuti kategori; penulis, ISBN-13, penerbit, tahun, stok, dan sinopsis dipilih melalui Faker. Judul boleh sama, tetapi ISBN harus unik.
-- Factory memakai `fake('id_ID')` secara eksplisit agar nama Indonesia tetap digunakan meskipun `.env` lokal masih memakai locale lama. `.env.example` juga memakai `APP_FAKER_LOCALE=id_ID`. Factory buku mandiri membuat kategori melalui `Kategori::factory()`; seeder memakai `for($kategori)` untuk menggunakan kategori yang sudah dibuat.
-- Seeder ditujukan untuk database kosong melalui `migrate:fresh --seed`, bukan dijalankan berulang pada data yang sama. Akun pengguna contoh bawaan diganti dengan data perpustakaan karena autentikasi tidak termasuk tugas.
-
-README bawaan di bawah akan diganti dengan panduan SIPUS-Del lengkap pada Tahap 7.
-
-### Tahap 4: Routing dan Controller
-
-Kedua resource memakai tujuh action RESTful dan implicit route model binding. `/` mengarah ke `buku.index`. Validasi dilakukan dengan `$request->validate()` di controller; batas panjang penulis, penerbit, kode, dan nama kategori mengikuti skema SQLite. ISBN menerima 10–13 digit sesuai modul (factory tetap menghasilkan 13 digit). Kategori yang masih mempunyai buku ditolak dengan flash `error`; operasi yang berhasil memakai flash `success`.
-
-Controller menyiapkan data untuk view `buku.*` dan `kategori.*`, dengan variabel koleksi `$bukus`/`$kategoris` dan record `$buku`/`$kategori`. Pada akhir Tahap 4, template Blade belum tersedia; template ditambahkan pada Tahap 5. Pengujian Tahap 4 memeriksa rute, binding, validasi, perubahan database, dan redirect.
-
-Verifikasi Tahap 4: `php artisan route:list --except-vendor` menampilkan 14 rute resource dan 1 redirect `/`. Perintah `php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit` lulus dengan 12 tests dan 531 assertions, termasuk create buku valid, ISBN duplikat, stok negatif, judul pendek, update dengan ISBN tetap, dan penolakan hapus kategori berisi buku. Pint pada file PHP yang diubah juga lulus.
-
-### Tahap 5: View Blade
-
-Delapan halaman CRUD memakai komponen `<x-layout>` di `resources/views/components/layout.blade.php`. Layout memakai Bootstrap 5.3.8 CSS melalui CDN jsDelivr sesuai [dokumentasi Bootstrap](https://getbootstrap.com/docs/5.3/), navbar ungu `#4C1D95` dengan hover `#3B0764`, dan flash success/error. Koneksi internet diperlukan untuk memuat CSS CDN; JavaScript Bootstrap tidak diperlukan karena navigasi sederhana dan konfirmasi hapus memakai `confirm()` bawaan browser.
-
-Form create/edit berbagi partial `_form` per resource, memakai CSRF, method PUT/DELETE, `old()`, dan `@error`. Semua output memakai `{{ }}`. Daftar kosong memakai `@forelse`, dan pagination memakai `Paginator::useBootstrapFive()`. View hanya menampilkan data dari controller tanpa kueri database. Detail kategori menampilkan jumlah buku; daftar buku per kategori tidak ditambahkan karena tidak diwajibkan modul.
-
-Verifikasi render server melalui `php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit` lulus dengan 19 tests dan 651 assertions: delapan halaman CRUD, data kosong, pagination kedua resource, input lama, pesan validasi setelah redirect, CSRF/method spoofing, konfirmasi hapus, flash, dan escaping konten pengguna. `php artisan view:cache` serta Pint juga lulus. Pengujian pesan validasi mengikuti redirect langsung agar session JSON bawaan Laravel 13 tidak dibaca ulang oleh assertion di antara dua request; konfigurasi session aplikasi tetap dipertahankan.
-
-### Verifikasi Tahap 1
-
-Runtime lokal menggunakan PHP 8.4.26 (memenuhi syarat PHP 8.3+). Driver SQLite pada PHP CLI belum aktif secara bawaan, sehingga perintah verifikasi dijalankan dengan `php -d extension=pdo_sqlite -d extension=sqlite3 artisan migrate --no-interaction`. Untuk memakai perintah `php artisan` biasa, aktifkan `pdo_sqlite` dan `sqlite3` pada konfigurasi PHP lokal terlebih dahulu. Konfigurasi sistem tidak diubah oleh proyek ini.
-
-### Verifikasi Tahap 3
-
-Jalankan `php -d extension=pdo_sqlite -d extension=sqlite3 artisan migrate:fresh --seed` untuk membuat ulang database dan mengisi 5 kategori serta 20 buku (perintah ini menghapus data lama). Pengujian melalui `php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit` lulus: 4 tests, 293 assertions. Pengujian seeder memeriksa sebaran buku, keunikan dan format ISBN, rentang tahun dan stok, relasi kategori, serta factory buku mandiri. Pemeriksaan format Pint pada file PHP Tahap 3 juga lulus.
-
-## About Laravel
-
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
-```
-
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- Gaya modul dipertahankan: properti klasik `protected $fillable`, `$request->validate()` dalam controller, dan `Route::resource`. Tidak memakai Form Request, PHP Attributes untuk konfigurasi model, starter kit, AI SDK, atau Boost.
+- Struktur proyek Laravel 13 dipertahankan: konfigurasi aplikasi/routing ada di `bootstrap/app.php` dan daftar provider di `bootstrap/providers.php`; tidak menambahkan file Kernel atau provider routing lama. Migrasi anonymous class tidak memerlukan perubahan struktur untuk tugas ini.
+- Model `User` bawaan proyek Laravel 13 semula memakai Attributes `Fillable` dan `Hidden`; keduanya diganti menjadi `$fillable` dan `$hidden` dengan isi yang sama sesuai gaya modul. Session JSON bawaan tetap dipertahankan; pengujian pesan validasi mengikuti redirect langsung sebelum memeriksa HTML.
+- Tabel bawaan users, cache, dan jobs dipertahankan karena session, cache, dan queue menggunakan database. Seeder akun contoh diganti dengan data perpustakaan karena autentikasi tidak diminta.
+- Kategori dibuat sebelum buku. Foreign key `kategori_id` memakai `restrict`; controller memeriksa keberadaan buku sebelum menghapus kategori.
+- SQLite tidak menegakkan panjang string dan unsigned seperti beberapa database lain. Deklarasi migrasi mengikuti modul, sementara validasi controller menegakkan batas panjang dan nilai input. ISBN menerima 10–13 digit sesuai aturan tugas; factory menghasilkan ISBN-13 unik. Judul boleh sama.
+- Faker dipanggil dengan locale `id_ID` secara eksplisit agar konsisten walau `.env` lama berbeda. Seeder membuat empat buku per kategori, setelah kelima kategori tersedia; judul mengikuti nama kategori. Seeder ditujukan untuk database kosong melalui `migrate:fresh --seed`, bukan untuk dijalankan berulang pada data yang sama.
+- Setiap resource berbagi partial form create/edit. Semua output memakai `{{ }}`, form memakai CSRF/method spoofing, dan hapus memakai konfirmasi browser. Detail kategori menampilkan jumlah buku; filter dan pencarian tidak ditambahkan karena tidak diminta.
+- Bootstrap 5.3.8 CSS menggunakan CDN dengan integrity hash. Navigasi sederhana tidak memerlukan JavaScript Bootstrap; font memakai default Bootstrap. Warna navbar `#4C1D95` dan hover `#3B0764` mengikuti modul.
+- Audit SQL memakai file konfigurasi agar flag env dapat di-cache dan nonaktif secara default. Eager loading dipertahankan setelah eksperimen lazy loading.
+- Repository Git belum tersedia pada awal tugas; commit Tahap 1 sekaligus mencatat kerangka proyek yang telah terinstal. Setiap tahap berikutnya memiliki satu commit Conventional Commits.
